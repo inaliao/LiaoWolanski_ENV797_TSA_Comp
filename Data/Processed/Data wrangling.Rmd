@@ -1,0 +1,58 @@
+---
+title: "Data wrangling"
+author: "Ina Liao and Drew Wolanski"
+date: "2024-03-25"
+output: html_document
+---
+
+```{r Setup, include=FALSE}
+knitr:::opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=FALSE,fig.align = "center", dev = "cairo_pdf", fig.pos = "H")
+```
+
+```{r Install packages, message=FALSE}
+#install.packages("lubridate")
+#install.packages("ggplot2")
+#install.packages("forecast")
+#install.packages("here")
+#install.packages("knitr")
+#install.packages("kableExtra")
+#install.packages("dplyr")
+#install.packages("openxlsx")
+#install.packages("ggthemes")
+#install.packages("tidyr")
+#install.packages("GGally")
+#install.packages("tseries")
+#install.packages("blorr")
+#install.packages("car")
+#install.packages("corrplot")
+#install.packages("dlm")
+#install.packages("randomForest")
+library(lubridate)
+library(ggplot2)
+library(forecast) 
+library(here)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(openxlsx)
+library(ggthemes)
+library(tidyr)
+library(GGally)
+library(trend)
+library(tseries)
+library(blorr)   
+library(lmtest) 
+library(car)
+library(cowplot)
+library(corrplot)
+library(dlm)
+library(randomForest)
+library(e1071) #for SVM
+```
+
+```{r Import Data, echo=TRUE, results='hide'}
+here()
+raw_load<-read.csv(here('Data/Raw/load.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+raw_temp<-read.csv(here('Data/Raw/temperature.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+raw_humid<-read.csv(here('Data/Raw/relative_humidity.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+```
