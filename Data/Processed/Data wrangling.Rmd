@@ -17,16 +17,7 @@ knitr:::opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=FALSE,fig.align = "
 #install.packages("knitr")
 #install.packages("kableExtra")
 #install.packages("dplyr")
-#install.packages("openxlsx")
-#install.packages("ggthemes")
 #install.packages("tidyr")
-#install.packages("GGally")
-#install.packages("tseries")
-#install.packages("blorr")
-#install.packages("car")
-#install.packages("corrplot")
-#install.packages("dlm")
-#install.packages("randomForest")
 library(lubridate)
 library(ggplot2)
 library(forecast) 
@@ -34,20 +25,7 @@ library(here)
 library(knitr)
 library(kableExtra)
 library(dplyr)
-library(openxlsx)
-library(ggthemes)
 library(tidyr)
-library(GGally)
-library(trend)
-library(tseries)
-library(blorr)   
-library(lmtest) 
-library(car)
-library(cowplot)
-library(corrplot)
-library(dlm)
-library(randomForest)
-library(e1071) #for SVM
 ```
 
 ```{r Import Data, echo=TRUE, results='hide'}
@@ -110,8 +88,7 @@ df_humid_merge %>%
 #load
 df_load_data<-df_load[,3:26]
 df_load_processed<-df_load %>%
-  mutate(daily_mean=rowMeans(df_load_data, na.rm = TRUE)) %>%
-  select(meter_id,date,daily_mean)
+  mutate(daily_mean=rowMeans(df_load_data, na.rm = TRUE)) 
 
 #temp
 df_temp_processed<-df_temp %>%
@@ -175,4 +152,11 @@ df_humid_processed<-df_humid %>%
             ws26=mean(rh_ws26,na.rm = TRUE)
   )
 
+```
+
+```{r Export File}
+here()
+write.csv(df_load_processed, "Data/Processed/load_processed.csv", row.names = TRUE)
+write.csv(df_temp_processed, "Data/Processed/temp_processed.csv", row.names = TRUE)
+write.csv(df_humid_processed, "Data/Processed/humid_processed.csv", row.names = TRUE)
 ```
