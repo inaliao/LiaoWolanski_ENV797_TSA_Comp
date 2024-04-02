@@ -56,3 +56,42 @@ raw_load<-read.csv(here('Data/Raw/load.csv'),stringsAsFactors = TRUE,skip=0,head
 raw_temp<-read.csv(here('Data/Raw/temperature.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
 raw_humid<-read.csv(here('Data/Raw/relative_humidity.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
 ```
+
+```{r Data format}
+#date
+raw_load$date<-mdy(raw_load$date)
+raw_temp$date<-as.Date(raw_temp$date,format="%d%b%Y")
+raw_humid$date<-as.Date(raw_humid$date,format="%d%b%Y")
+```
+
+```{r Selected needed data}
+#Jan 1st 2005 to May 31st 2011
+df_load<-raw_load %>%
+  filter(date>=ymd("2005-01-01") & date<=ymd("2011-05-31"))
+
+df_temp<-raw_temp %>%
+  filter(date>=ymd("2005-01-01") & date<=ymd("2011-05-31"))
+
+df_humid<-raw_humid %>%
+  filter(date>=ymd("2005-01-01") & date<=ymd("2011-05-31"))
+```
+
+```{r Check missing data}
+#create time dataframe
+start_time<-ymd("2005-01-01")
+end_time<-ymd("2011-05-31")
+df_time<-data.frame(date=seq(from=start_time, to=end_time, by="1 day"))
+
+#merge dataframe
+df_load_merge<-left_join(df_time,df_load,by="date")
+df_temp_merge<-left_join(df_time,df_temp,by="date")
+df_humid_merge<-left_join(df_time,df_humid,by="date")
+
+#filter missing data
+df_load_merge %>%
+  filter(is.na(date)) #no missing data
+df_temp_merge %>%
+  filter(is.na(date)) #no missing data
+df_humid_merge %>%
+  filter(is.na(date)) #no missing data
+```
