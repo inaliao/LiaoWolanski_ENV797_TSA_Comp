@@ -126,22 +126,41 @@ cat("Number of seasonal differencing needed:", ns_diff) #no need to difference t
 ```
 
 ```{r Training and testing data}
-#training: from 2005-01-01 to 2009-12-31
+#training: from 2005-01-01 to 2010-05-30
 msts_training<-msts(df_load_processed[,3],seasonal.periods=c(7,365),
-                    start=c(2005,01,01), end=c(2009,12,31))
+                    start=c(2005,01,01), end=c(2010,05,30))
 
-#testing: from 2010-01-01 to 2011-05-31
+#testing: from 2010-05-31 to 2011-05-31
 msts_testing<-msts(df_load_processed[,3],seasonal.periods=c(7,365),
-                    start=c(2010,01,01), end=c(2011,05,31))
-
+                    start=c(2010,05,31), end=c(2011,05,31))
 ```
 
+# One year forecast horizon
 ```{r ETS}
-
+ETS_fit<-stlf(msts_training,h=365)
 ```
-
 
 ```{r ARIMA and Fourier terms}
+#K=c(2,4)
+#fit ARIMA with original time series 
+ARIMA_Four_fit_1<-auto.arima(msts_training,
+                             seasonal=FALSE, #because ARIMA can not handle seasonality 
+                             xreg=fourier(msts_training,K=c(2,4)))
+#forecast with ARIMA_fit
+ARIMA_Four_forecast_1<-forecast(ARIMA_Four_fit_1,
+                                xreg=fourier(msts_training,K=c(2,4),h=365),
+                                h=365) 
+
+
+#K=c(2,12)
+#fit ARIMA with original time series 
+ARIMA_Four_fit_2<-auto.arima(msts_training,
+                             seasonal=FALSE, 
+                             xreg=fourier(msts_training,K=c(2,12)))
+#forecast with ARIMA_fit
+ARIMA_Four_forecast_2<-forecast(ARIMA_Four_fit_2,
+                                xreg=fourier(msts_training,K=c(2,12),h=365),
+                                h=365) 
 ```
 
 ```{r ARIMA + Fourie + exogenous variable}
@@ -150,14 +169,79 @@ msts_testing<-msts(df_load_processed[,3],seasonal.periods=c(7,365),
 ```
 
 ```{r Neural Network}
+#p=1, P=0 because seasonal=FALSE
+#K=c(2,4)
+NN_fit_1<-nnetar(msts_training,p=1,P=0,xreg=fourier(msts_training,K=c(2,4)))
+NN_forecast_1<-forecast(NN_fit_1,xreg=fourier(msts_training,K=c(2,4),h=365), h=365)
+
+#K=c(2,12)
+NN_fit_2<-nnetar(msts_training,p=1,P=0,xreg=fourier(msts_training,K=c(2,12)))
+NN_forecast_2<-forecast(NN_fit_2,xreg=fourier(msts_training,K=c(2,12),h=365), h=365)
 
 ```
 
 ```{r Plot Forecast Results}
+#forecast period 
+forecast_start<-start(ARIMA_Four_forecast_1$mean)
+forecast_end<-end(ARIMA_Four_forecast_1$mean)
+msts_forecast<-window(msts_load, start=forecast_start, end=forecast_end)
+
+#plot forecasting result
+
+#with K=c(2,4)
+autoplot(msts_forecast)+
+  autolayer(ETS_fit,series="STL+ETS",PI=FALSE)+
+  autolayer(ARIMA_Four_forecast_1, series="ARIMA Fourier",PI=FALSE)+
+  autolayer(NN_forecast_1, series="Neural Network")
+
+#with K=c(2,12)
+autoplot(msts_forecast)+
+  autolayer(ETS_fit,series="STL+ETS",PI=FALSE)+
+  autolayer(ARIMA_Four_forecast_2, series="ARIMA Fourier",PI=FALSE)+
+  autolayer(NN_forecast_2, series="Neural Network")
 ```
 
 ```{r Model Residuals}
+resi_ETS<-checkresiduals(ETS_fit)
+resi_ARIMA_Four_1<-checkresiduals(ARIMA_Four_forecast_1)
+resi_ARIMA_Four_2<-checkresiduals(ARIMA_Four_forecast_2)
+resi_NN_forecast_1<-checkresiduals(NN_forecast_1)
+resi_NN_forecast_2<-checkresiduals(NN_forecast_2)
 ```
 
 ```{r Accuracy}
+#Model1:ETS
+scores_ETS<-accuracy(ETS_fit$mean,msts_testing)
+
+#Model2: ARIMA + Fourier, K=c(2,4) 
+scores_ARIMA_Four_forecast_1<-accuracy(ARIMA_Four_forecast_1$mean,msts_testing)
+
+#Model3: ARIMA + Fourier, K=c(2,12)
+scores_ARIMA_Four_forecast_2<-accuracy(ARIMA_Four_forecast_2$mean,msts_testing)
+
+#Model4: Neural network, K=C(2,4) 
+scores_NN_1<-accuracy(NN_forecast_1$mean,msts_testing)
+
+#Model5: Neural network, K=c(2,12)
+scores_NN_2<-accuracy(NN_forecast_2$mean,msts_testing)
+
+#create a data frame to store the scores 
+scores<-as.data.frame(rbind(scores_ETS,
+                            scores_ARIMA_Four_forecast_1,
+                            scores_ARIMA_Four_forecast_2,
+                            scores_NN_1,
+                            scores_NN_2))
+row.names(scores)<-c("ETS",
+                     "ARIMA+Fourier, K=C(2,4)",
+                     "ARIMA+Fourier, K=C(2,12)",
+                     "NN, K=C(2,4)",
+                     "NN, K=C(2,12)")
+
+#create a comparable table 
+kbl(scores, 
+    caption = "Forecast Accuracy for Electricity Demand",
+    digits = array(5,ncol(scores))) %>%
+  kable_styling(full_width = FALSE, position = "center", latex_options = "hold_position")
+
+#Model3 has the lowest the RMSE and MAPE
 ```
