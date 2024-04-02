@@ -1,0 +1,163 @@
+---
+title: "Data wrangling"
+author: "Ina Liao and Drew Wolanski"
+date: "2024-03-25"
+output: html_document
+---
+
+```{r Setup, include=FALSE}
+knitr:::opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=FALSE,fig.align = "center", dev = "cairo_pdf", fig.pos = "H")
+```
+
+```{r Install packages, message=FALSE}
+#install.packages("lubridate")
+#install.packages("ggplot2")
+#install.packages("forecast")
+#install.packages("here")
+#install.packages("knitr")
+#install.packages("kableExtra")
+#install.packages("dplyr")
+#install.packages("openxlsx")
+#install.packages("ggthemes")
+#install.packages("tidyr")
+#install.packages("GGally")
+#install.packages("tseries")
+#install.packages("blorr")
+#install.packages("car")
+#install.packages("corrplot")
+#install.packages("dlm")
+#install.packages("randomForest")
+#install.packages("Kendall")
+library(lubridate)
+library(ggplot2)
+library(forecast) 
+library(here)
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(openxlsx)
+library(ggthemes)
+library(tidyr)
+library(Kendall)
+library(GGally)
+library(trend)
+library(tseries)
+library(blorr)   
+library(lmtest) 
+library(car)
+library(cowplot)
+library(corrplot)
+library(dlm)
+library(randomForest)
+library(e1071) #for SVM
+```
+
+```{r Import Data, echo=TRUE, results='hide'}
+here()
+df_load<-read.csv(here('Data/Processed/load_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+df_temp<-read.csv(here('Data/Processed/temp_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+df_humid<-read.csv(here('Data/Processed/humid_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+```
+
+```{r Filter data}
+#date
+df_load$date<-ymd(df_load$date)
+df_temp$date<-ymd(df_temp$date)
+df_humid$date<-ymd(df_humid$date)
+
+#selected needed column
+df_load_processed<-df_load%>%
+  select(meter_id,date,daily_mean)
+df_temp_processed<-df_temp[,2:28]
+df_humid_processed<-df_humid[,2:28]
+
+#as numaric
+for (i in 2:27){
+  df_temp_processed[,i]<-as.numeric(df_temp_processed[,i])
+  df_humid_processed[,i]<-as.numeric(df_humid_processed[,i])
+}
+```
+
+```{r Create time series object}
+#load
+msts_load<-msts(df_load_processed[,3],seasonal.periods=c(7,365),start =c(2005,01,01), end=c(2011,05,31))
+autoplot(msts_load)
+```
+
+```{r ACF and PACF}
+#load
+par(mfrow=c(1,2))
+Acf(msts_load,lag.max=40,main=paste("ACF for load"),ylim=c(-0.5,1))
+Pacf(msts_load,lag.max=40,main=paste("PACF for load"),ylim=c(-0.5,1))
+```
+
+
+
+```{r Detrend and deseason}
+#decompose 
+load_decompose<-decompose(msts_load)
+plot(load_decompose)
+
+#deseason
+load_deseason<-seasadj(load_decompose)
+plot_grid(
+  autoplot(load_deseason),
+  autoplot(Acf(load_deseason,plot=FALSE,lag.max=40)),
+  autoplot(Pacf(load_deseason,plot=FALSE,lag.max=40)),
+  nrow=1
+)
+```
+
+```{r Stationary test}
+#Mann-Kendall
+summary(MannKendall(load_deseason)) #reject the null hypothesis, supporting the presence of a trend
+
+#seasonal Mann-Kendall
+trend::smk.test(load_deseason) #reject the null hypothesis, supporting the presence of seasonal trend 
+
+#ADF test
+print(adf.test(load_deseason,alternative = "stationary")) #reject the null hypothesis, the trend is stationary 
+```
+
+```{r Differencing}
+#find out how many times is needed for differencing 
+ns_diff<-nsdiffs(load_deseason)
+cat("Number of seasonal differencing needed:", ns_diff) #no need to difference the series
+```
+
+```{r Training and testing data}
+#training: from 2005-01-01 to 2009-12-31
+msts_training<-msts(df_load_processed[,3],seasonal.periods=c(7,365),
+                    start=c(2005,01,01), end=c(2009,12,31))
+
+#testing: from 2010-01-01 to 2011-05-31
+msts_testing<-msts(df_load_processed[,3],seasonal.periods=c(7,365),
+                    start=c(2010,01,01), end=c(2011,05,31))
+
+```
+
+```{r ETS}
+
+```
+
+
+```{r ARIMA and Fourier terms}
+```
+
+```{r ARIMA + Fourie + exogenous variable}
+#temp
+#humid
+```
+
+```{r Neural Network}
+
+```
+
+```{r Plot Forecast Results}
+```
+
+```{r Model Residuals}
+```
+
+```{r Accuracy}
+```
