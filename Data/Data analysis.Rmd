@@ -191,6 +191,11 @@ msts_forecast<-window(msts_load, start=forecast_start, end=forecast_end)
 #plot forecasting result
 
 #with K=c(2,4)
+#add the seasonality back 
+ETS_fit$mean<-ETS_fit$mean+load_decompose$seasonal
+ARIMA_Four_forecast_1$mean<-ARIMA_Four_forecast_1$mean+load_decompose$seasonal
+NN_forecast_1$mean<-NN_forecast_1$mean+load_decompose$seasonal
+
 autoplot(msts_forecast)+
   autolayer(ETS_fit,series="STL+ETS",PI=FALSE)+
   autolayer(ARIMA_Four_forecast_1, series="ARIMA Fourier",PI=FALSE)+
