@@ -113,7 +113,9 @@ plot_grid(
 summary(MannKendall(load_deseason)) #reject the null hypothesis, supporting the presence of a trend
 
 #seasonal Mann-Kendall
-trend::smk.test(load_deseason) #reject the null hypothesis, supporting the presence of seasonal trend 
+#correction: calculate monthly average 
+trend::smk.test(load_deseason) 
+
 
 #ADF test
 print(adf.test(load_deseason,alternative = "stationary")) #reject the null hypothesis, the trend is stationary 
