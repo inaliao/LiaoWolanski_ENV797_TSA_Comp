@@ -83,6 +83,18 @@ for (i in 2:27){
 msts_load<-msts(df_load_processed[,3],seasonal.periods=c(7,365),start =c(2005,01,01), end=c(2011,05,31))
 autoplot(msts_load)
 ```
+```{r Temp and humidity}
+df_temp_data<-df_temp_processed[,2:27]
+df_temp_processed %>%
+  mutate(daily_mean=rowMeans(df_temp_data, na.rm = TRUE)) %>%
+  select(date,daily_mean) 
+
+df_humid_data<-df_humid_processed[,2:27]
+df_humid_processed %>%
+  mutate(daily_mean=rowMeans(df_humid_data, na.rm = TRUE)) %>%
+  select(date,daily_mean) 
+
+```
 
 ```{r ACF and PACF}
 #load
@@ -129,11 +141,21 @@ cat("Number of seasonal differencing needed:", ns_diff) #no need to difference t
 
 ```{r Training and testing data}
 #training: from 2005-01-01 to 2010-05-30
+#testing: from 2010-05-31 to 2011-05-31
+
+#origin series
 msts_training<-msts(df_load_processed[,3],seasonal.periods=c(7,365),
                     start=c(2005,01,01), end=c(2010,05,30))
 
-#testing: from 2010-05-31 to 2011-05-31
+
 msts_testing<-msts(df_load_processed[,3],seasonal.periods=c(7,365),
+                    start=c(2010,05,31), end=c(2011,05,31))
+
+#deseason series
+msts_deseason_training<-msts(load_deseason,seasonal.periods=c(7,365),
+                    start=c(2005,01,01), end=c(2010,05,30))
+
+msts_deseason_testing<-msts(load_deseason,seasonal.periods=c(7,365),
                     start=c(2010,05,31), end=c(2011,05,31))
 ```
 
@@ -145,12 +167,12 @@ ETS_fit<-stlf(msts_training,h=365)
 ```{r ARIMA and Fourier terms}
 #K=c(2,4)
 #fit ARIMA with original time series 
-ARIMA_Four_fit_1<-auto.arima(msts_training,
+ARIMA_Four_fit_1<-auto.arima(msts_deseason_training,
                              seasonal=FALSE, #because ARIMA can not handle seasonality 
-                             xreg=fourier(msts_training,K=c(2,4)))
+                             xreg=fourier(msts_deseason_training,K=c(2,4)))
 #forecast with ARIMA_fit
 ARIMA_Four_forecast_1<-forecast(ARIMA_Four_fit_1,
-                                xreg=fourier(msts_training,K=c(2,4),h=365),
+                                xreg=fourier(msts_deseason_training,K=c(2,4),h=365),
                                 h=365) 
 
 
@@ -167,18 +189,39 @@ ARIMA_Four_forecast_2<-forecast(ARIMA_Four_fit_2,
 
 ```{r ARIMA + Fourie + exogenous variable}
 #temp
+#create time series object 
+msts_temp_training<-msts(df[,7], seasonal.periods=c(7,365),
+                   start=c(2015,07,01),end=c(2020,12,31))
+
+msts_temp_testing<-msts(df[,7], seasonal.periods=c(7,365),
+                   start=c(2021,01,01),end=c(2022,12,31))
+
+
 #humid
 ```
 
 ```{r Neural Network}
 #p=1, P=0 because seasonal=FALSE
+
 #K=c(2,4)
-NN_fit_1<-nnetar(msts_training,p=1,P=0,xreg=fourier(msts_training,K=c(2,4)))
-NN_forecast_1<-forecast(NN_fit_1,xreg=fourier(msts_training,K=c(2,4),h=365), h=365)
+NN_fit_1<-nnetar(msts_deseason_training,
+                 p=1,
+                 P=0,
+                 xreg=fourier(msts_deseason_training,K=c(2,4)))
+
+NN_forecast_1<-forecast(NN_fit_1,
+                        xreg=fourier(msts_training,K=c(2,4),h=365), 
+                        h=365)
 
 #K=c(2,12)
-NN_fit_2<-nnetar(msts_training,p=1,P=0,xreg=fourier(msts_training,K=c(2,12)))
-NN_forecast_2<-forecast(NN_fit_2,xreg=fourier(msts_training,K=c(2,12),h=365), h=365)
+NN_fit_2<-nnetar(msts_training,
+                 p=1,
+                 P=0,
+                 xreg=fourier(msts_training,K=c(2,12)))
+
+NN_forecast_2<-forecast(NN_fit_2,
+                        xreg=fourier(msts_training,K=c(2,12),h=365), 
+                        h=365)
 
 ```
 
