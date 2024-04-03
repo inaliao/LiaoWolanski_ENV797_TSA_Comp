@@ -190,14 +190,61 @@ ARIMA_Four_forecast_2<-forecast(ARIMA_Four_fit_2,
 ```{r ARIMA + Fourie + exogenous variable}
 #temp
 #create time series object 
-msts_temp_training<-msts(df[,7], seasonal.periods=c(7,365),
-                   start=c(2015,07,01),end=c(2020,12,31))
+msts_temp_training<-msts(df_temp_processed[,2], seasonal.periods=c(7,365),
+                   start=c(2005,01,01), end=c(2010,05,30))
 
-msts_temp_testing<-msts(df[,7], seasonal.periods=c(7,365),
-                   start=c(2021,01,01),end=c(2022,12,31))
+msts_temp_testing<-msts(df_temp_processed[,2], seasonal.periods=c(7,365),
+                   start=c(2010,05,31), end=c(2011,05,31))
 
 
 #humid
+#create time series object 
+msts_humid_training<-msts(df_humid_processed[,2], seasonal.periods=c(7,365),
+                   start=c(2005,01,01), end=c(2010,05,30))
+
+msts_humid_testing<-msts(df_humid_processed[,2], seasonal.periods=c(7,365),
+                   start=c(2010,05,31), end=c(2011,05,31))
+
+#
+#K=c(2,4)
+#fit ARIMA with original time series 
+ARIMA_Four_fit_XREG_1<-auto.arima(msts_deseason_training,
+                           seasonal=FALSE,
+                           #combine fourier and exogenous variable time series  
+                           xreg=as.matrix(cbind(fourier(msts_deseason_training,K=c(2,4)),
+                                                msts_temp_training)))  
+
+#generate fourier terms
+fourier_terms_1<-fourier(msts_deseason_training, K=c(2,4), h = 365)
+#generate forecast
+temp_forecast_1<-forecast(msts_temp_training, h = 365)
+#combine fourier terms and forecasts into a numeric matrix
+xreg_matrix_1<-as.matrix(cbind(fourier_terms_1, temp_forecast_1$mean))
+
+#forecast with ARIMA_fit_XREG
+ARIMA_Four_forecast_XREG_1<-forecast(ARIMA_Four_fit_XREG_1,
+                                   xreg = xreg_matrix_1,
+                                   h = 365)
+
+#K=c(2,12)
+#fit ARIMA with original time series 
+ARIMA_Four_fit_XREG_2<-auto.arima(msts_training,
+                           seasonal=FALSE,
+                           #combine fourier and exogenous variable time series  
+                           xreg=as.matrix(cbind(fourier(msts_training,K=c(2,12)),
+                                                msts_temp_training)))  
+
+#generate fourier terms
+fourier_terms_2<-fourier(msts_training, K=c(2,12), h = 365)
+#generate forecast
+temp_forecast_2<-forecast(msts_temp_training, h = 365)
+#combine fourier terms and forecasts into a numeric matrix
+xreg_matrix_2<-as.matrix(cbind(fourier_terms_2, temp_forecast_2$mean))
+
+#forecast with ARIMA_fit_XREG
+ARIMA_Four_forecast_XREG_2<-forecast(ARIMA_Four_fit_XREG_2,
+                                   xreg = xreg_matrix_2,
+                                   h = 365)
 ```
 
 ```{r Neural Network}
@@ -238,16 +285,20 @@ msts_forecast<-window(msts_load, start=forecast_start, end=forecast_end)
 ETS_fit$mean<-ETS_fit$mean+load_decompose$seasonal
 ARIMA_Four_forecast_1$mean<-ARIMA_Four_forecast_1$mean+load_decompose$seasonal
 NN_forecast_1$mean<-NN_forecast_1$mean+load_decompose$seasonal
+ARIMA_Four_forecast_XREG_1$mean<-ARIMA_Four_forecast_XREG_1$mean+load_decompose$seasonal
 
 autoplot(msts_forecast)+
   autolayer(ETS_fit,series="STL+ETS",PI=FALSE)+
   autolayer(ARIMA_Four_forecast_1, series="ARIMA Fourier",PI=FALSE)+
+  autolayer(ARIMA_Four_forecast_XREG_1, series="ARIMA Fourier XREG",PI=FALSE)+
   autolayer(NN_forecast_1, series="Neural Network")
+  
 
 #with K=c(2,12)
 autoplot(msts_forecast)+
   autolayer(ETS_fit,series="STL+ETS",PI=FALSE)+
   autolayer(ARIMA_Four_forecast_2, series="ARIMA Fourier",PI=FALSE)+
+  autolayer(ARIMA_Four_forecast_XREG_2, series="ARIMA Fourier XREG",PI=FALSE)+
   autolayer(NN_forecast_2, series="Neural Network")
 ```
 
@@ -255,6 +306,8 @@ autoplot(msts_forecast)+
 resi_ETS<-checkresiduals(ETS_fit)
 resi_ARIMA_Four_1<-checkresiduals(ARIMA_Four_forecast_1)
 resi_ARIMA_Four_2<-checkresiduals(ARIMA_Four_forecast_2)
+resi_ARIMA_Four_XREG_1<-checkresiduals(ARIMA_Four_forecast_XREG_1)
+resi_ARIMA_Four_XREG_2<-checkresiduals(ARIMA_Four_forecast_XREG_2)
 resi_NN_forecast_1<-checkresiduals(NN_forecast_1)
 resi_NN_forecast_2<-checkresiduals(NN_forecast_2)
 ```
@@ -269,21 +322,31 @@ scores_ARIMA_Four_forecast_1<-accuracy(ARIMA_Four_forecast_1$mean,msts_testing)
 #Model3: ARIMA + Fourier, K=c(2,12)
 scores_ARIMA_Four_forecast_2<-accuracy(ARIMA_Four_forecast_2$mean,msts_testing)
 
-#Model4: Neural network, K=C(2,4) 
+#Model4: Neural network, K=c(2,4) 
 scores_NN_1<-accuracy(NN_forecast_1$mean,msts_testing)
 
 #Model5: Neural network, K=c(2,12)
 scores_NN_2<-accuracy(NN_forecast_2$mean,msts_testing)
 
+#Model6: ARIMA + Fourier + XREG, K=c(2,4) 
+scores_ARIMA_Four_XREG_1<-accuracy(ARIMA_Four_forecast_XREG_1$mean,msts_testing)
+
+#Model7: ARIMA + Fourier + XREG, K=c(2,12)
+scores_ARIMA_Four_XREG_2<-accuracy(ARIMA_Four_forecast_XREG_2$mean,msts_testing)
+
 #create a data frame to store the scores 
 scores<-as.data.frame(rbind(scores_ETS,
                             scores_ARIMA_Four_forecast_1,
                             scores_ARIMA_Four_forecast_2,
+                            scores_ARIMA_Four_XREG_1,
+                            scores_ARIMA_Four_XREG_2,
                             scores_NN_1,
                             scores_NN_2))
 row.names(scores)<-c("ETS",
                      "ARIMA+Fourier, K=C(2,4)",
                      "ARIMA+Fourier, K=C(2,12)",
+                     "ARIMA+Fourier+XREG, K=C(2,4)",
+                     "ARIMA+Fourier+XREG, K=C(2,12)",
                      "NN, K=C(2,4)",
                      "NN, K=C(2,12)")
 
