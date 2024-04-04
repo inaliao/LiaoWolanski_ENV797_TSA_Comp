@@ -17,16 +17,7 @@ knitr:::opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=FALSE,fig.align = "
 #install.packages("knitr")
 #install.packages("kableExtra")
 #install.packages("dplyr")
-#install.packages("openxlsx")
-#install.packages("ggthemes")
 #install.packages("tidyr")
-#install.packages("GGally")
-#install.packages("tseries")
-#install.packages("blorr")
-#install.packages("car")
-#install.packages("corrplot")
-#install.packages("dlm")
-#install.packages("randomForest")
 library(lubridate)
 library(ggplot2)
 library(forecast) 
@@ -34,20 +25,7 @@ library(here)
 library(knitr)
 library(kableExtra)
 library(dplyr)
-library(openxlsx)
-library(ggthemes)
 library(tidyr)
-library(GGally)
-library(trend)
-library(tseries)
-library(blorr)   
-library(lmtest) 
-library(car)
-library(cowplot)
-library(corrplot)
-library(dlm)
-library(randomForest)
-library(e1071) #for SVM
 ```
 
 ```{r Import Data, echo=TRUE, results='hide'}
@@ -55,4 +33,130 @@ here()
 raw_load<-read.csv(here('Data/Raw/load.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
 raw_temp<-read.csv(here('Data/Raw/temperature.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
 raw_humid<-read.csv(here('Data/Raw/relative_humidity.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+```
+
+```{r Filter data}
+#date
+raw_load$date<-mdy(raw_load$date)
+raw_temp$date<-as.Date(raw_temp$date,format="%d%b%Y")
+raw_humid$date<-as.Date(raw_humid$date,format="%d%b%Y")
+
+
+#Jan 1st 2005 to May 31st 2011
+df_load<-raw_load %>%
+  filter(date>=ymd("2005-01-01") & date<=ymd("2011-05-31"))
+
+df_temp<-raw_temp %>%
+  filter(date>=ymd("2005-01-01") & date<=ymd("2011-05-31"))
+
+df_humid<-raw_humid %>%
+  filter(date>=ymd("2005-01-01") & date<=ymd("2011-05-31"))
+
+#as numaric
+#load
+for (i in 3:26){
+  df_load[,i]<-as.numeric(df_load[,i])
+}
+#temp and humid
+for (i in 3:30){
+  df_temp[,i]<-as.numeric(df_temp[,i])
+  df_humid[,i]<-as.numeric(df_humid[,i])
+}
+```
+
+```{r Check missing data}
+#create time dataframe
+start_time<-ymd("2005-01-01")
+end_time<-ymd("2011-05-31")
+df_time<-data.frame(date=seq(from=start_time, to=end_time, by="1 day"))
+
+#merge dataframe
+df_load_merge<-left_join(df_time,df_load,by="date")
+df_temp_merge<-left_join(df_time,df_temp,by="date")
+df_humid_merge<-left_join(df_time,df_humid,by="date")
+
+#filter missing data
+df_load_merge %>%
+  filter(is.na(date)) #no missing data
+df_temp_merge %>%
+  filter(is.na(date)) #no missing data
+df_humid_merge %>%
+  filter(is.na(date)) #no missing data
+```
+
+```{r Daily average}
+#load
+df_load_data<-df_load[,3:26]
+df_load_processed<-df_load %>%
+  mutate(daily_mean=rowMeans(df_load_data, na.rm = TRUE)) 
+
+#temp
+df_temp_processed<-df_temp %>%
+  group_by(date) %>%
+  summarize(ws1=mean(t_ws1,na.rm = TRUE),
+            ws2=mean(t_ws2,na.rm = TRUE),
+            ws3=mean(t_ws3,na.rm = TRUE),
+            ws4=mean(t_ws4,na.rm = TRUE),
+            ws5=mean(t_ws5,na.rm = TRUE),
+            ws6=mean(t_ws6,na.rm = TRUE),
+            ws7=mean(t_ws7,na.rm = TRUE),
+            ws8=mean(t_ws8,na.rm = TRUE),
+            ws9=mean(t_ws9,na.rm = TRUE),
+            ws10=mean(t_ws10,na.rm = TRUE),
+            ws11=mean(t_ws11,na.rm = TRUE),
+            ws12=mean(t_ws12,na.rm = TRUE),
+            ws13=mean(t_ws13,na.rm = TRUE),
+            ws14=mean(t_ws14,na.rm = TRUE),
+            ws15=mean(t_ws15,na.rm = TRUE),
+            ws16=mean(t_ws16,na.rm = TRUE),
+            ws17=mean(t_ws17,na.rm = TRUE),
+            ws18=mean(t_ws18,na.rm = TRUE),
+            ws19=mean(t_ws19,na.rm = TRUE),
+            ws20=mean(t_ws20,na.rm = TRUE),
+            ws21=mean(t_ws21,na.rm = TRUE),
+            ws22=mean(t_ws22,na.rm = TRUE),
+            ws23=mean(t_ws23,na.rm = TRUE),
+            ws24=mean(t_ws24,na.rm = TRUE),
+            ws25=mean(t_ws25,na.rm = TRUE),
+            ws26=mean(t_ws26,na.rm = TRUE)
+  )
+
+#humid
+df_humid_processed<-df_humid %>%
+  group_by(date) %>%
+  summarize(ws1=mean(rh_ws1,na.rm = TRUE),
+            ws2=mean(rh_ws2,na.rm = TRUE),
+            ws3=mean(rh_ws3,na.rm = TRUE),
+            ws4=mean(rh_ws4,na.rm = TRUE),
+            ws5=mean(rh_ws5,na.rm = TRUE),
+            ws6=mean(rh_ws6,na.rm = TRUE),
+            ws7=mean(rh_ws7,na.rm = TRUE),
+            ws8=mean(rh_ws8,na.rm = TRUE),
+            ws9=mean(rh_ws9,na.rm = TRUE),
+            ws10=mean(rh_ws10,na.rm = TRUE),
+            ws11=mean(rh_ws11,na.rm = TRUE),
+            ws12=mean(rh_ws12,na.rm = TRUE),
+            ws13=mean(rh_ws13,na.rm = TRUE),
+            ws14=mean(rh_ws14,na.rm = TRUE),
+            ws15=mean(rh_ws15,na.rm = TRUE),
+            ws16=mean(rh_ws16,na.rm = TRUE),
+            ws17=mean(rh_ws17,na.rm = TRUE),
+            ws18=mean(rh_ws18,na.rm = TRUE),
+            ws19=mean(rh_ws19,na.rm = TRUE),
+            ws20=mean(rh_ws20,na.rm = TRUE),
+            ws21=mean(rh_ws21,na.rm = TRUE),
+            ws22=mean(rh_ws22,na.rm = TRUE),
+            ws23=mean(rh_ws23,na.rm = TRUE),
+            ws24=mean(rh_ws24,na.rm = TRUE),
+            ws25=mean(rh_ws25,na.rm = TRUE),
+            ws26=mean(rh_ws26,na.rm = TRUE)
+  )
+
+```
+
+```{r Export File}
+here()
+write.csv(df_load_processed, "Data/Processed/load_processed.csv", row.names = TRUE)
+write.csv(df_temp_processed, "Data/Processed/temp_processed.csv", row.names = TRUE)
+write.csv(df_humid_processed, "Data/Processed/humid_processed.csv", row.names = TRUE)
 ```
