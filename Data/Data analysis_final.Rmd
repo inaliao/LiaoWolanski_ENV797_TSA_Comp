@@ -5,9 +5,6 @@ date: "2024-03-25"
 output: html_document
 ---
 
-```{r Setup, include=FALSE}
-knitr:::opts_chunk$set(tidy.opts=list(width.cutoff=80), tidy=FALSE,fig.align = "center", dev = "cairo_pdf", fig.pos = "H")
-```
 
 ```{r Install packages, message=FALSE}
 #install.packages("lubridate")
