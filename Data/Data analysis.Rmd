@@ -185,6 +185,7 @@ ARIMA_Four_fit_2<-auto.arima(msts_training,
 ARIMA_Four_forecast_2<-forecast(ARIMA_Four_fit_2,
                                 xreg=fourier(msts_training,K=c(2,12),h=365),
                                 h=365) 
+
 ```
 
 ```{r ARIMA + Fourie + exogenous variable}
@@ -215,16 +216,16 @@ ARIMA_Four_fit_XREG_1<-auto.arima(msts_deseason_training,
                                                 msts_temp_training)))  
 
 #generate fourier terms
-fourier_terms_1<-fourier(msts_deseason_training, K=c(2,4), h = 365)
+fourier_terms_1<-fourier(msts_deseason_training, K=c(2,4), h = 31)
 #generate forecast
-temp_forecast_1<-forecast(msts_temp_training, h = 365)
+temp_forecast_1<-forecast(msts_temp_training, h = 31)
 #combine fourier terms and forecasts into a numeric matrix
 xreg_matrix_1<-as.matrix(cbind(fourier_terms_1, temp_forecast_1$mean))
 
 #forecast with ARIMA_fit_XREG
 ARIMA_Four_forecast_XREG_1<-forecast(ARIMA_Four_fit_XREG_1,
                                    xreg = xreg_matrix_1,
-                                   h = 365)
+                                   h = 31)
 
 #K=c(2,12)
 #fit ARIMA with original time series 
@@ -235,16 +236,16 @@ ARIMA_Four_fit_XREG_2<-auto.arima(msts_training,
                                                 msts_temp_training)))  
 
 #generate fourier terms
-fourier_terms_2<-fourier(msts_training, K=c(2,12), h = 365)
+fourier_terms_2<-fourier(msts_training, K=c(2,12), h = 31)
 #generate forecast
-temp_forecast_2<-forecast(msts_temp_training, h = 365)
+temp_forecast_2<-forecast(msts_temp_training, h = 31)
 #combine fourier terms and forecasts into a numeric matrix
 xreg_matrix_2<-as.matrix(cbind(fourier_terms_2, temp_forecast_2$mean))
 
 #forecast with ARIMA_fit_XREG
 ARIMA_Four_forecast_XREG_2<-forecast(ARIMA_Four_fit_XREG_2,
                                    xreg = xreg_matrix_2,
-                                   h = 365)
+                                   h = 31)
 ```
 
 ```{r Neural Network}
@@ -257,8 +258,8 @@ NN_fit_1<-nnetar(msts_deseason_training,
                  xreg=fourier(msts_deseason_training,K=c(2,4)))
 
 NN_forecast_1<-forecast(NN_fit_1,
-                        xreg=fourier(msts_training,K=c(2,4),h=365), 
-                        h=365)
+                        xreg=fourier(msts_training,K=c(2,4),h=31), 
+                        h=31)
 
 #K=c(2,12)
 NN_fit_2<-nnetar(msts_training,
@@ -267,8 +268,8 @@ NN_fit_2<-nnetar(msts_training,
                  xreg=fourier(msts_training,K=c(2,12)))
 
 NN_forecast_2<-forecast(NN_fit_2,
-                        xreg=fourier(msts_training,K=c(2,12),h=365), 
-                        h=365)
+                        xreg=fourier(msts_training,K=c(2,12),h=31), 
+                        h=31)
 
 ```
 

@@ -1,5 +1,5 @@
 ---
-title: "Data wrangling"
+title: "Data Analysis"
 author: "Ina Liao and Drew Wolanski"
 date: "2024-03-25"
 output: html_document
@@ -52,11 +52,16 @@ library(randomForest)
 library(e1071) #for SVM
 ```
 
-```{r Import Data, echo=TRUE, results='hide'}
+```{r Import Data, echo=TRUE, include=FALSE}
 here()
-df_load<-read.csv(here('C:/Users/dreww/OneDrive/Documents/Homework/Time Series/TSA_Sp24/Data/Processed/load_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
-df_temp<-read.csv(here('C:/Users/dreww/OneDrive/Documents/Homework/Time Series/TSA_Sp24/Data/Processed/temp_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
-df_humid<-read.csv(here('C:/Users/dreww/OneDrive/Documents/Homework/Time Series/TSA_Sp24/Data/Processed/humid_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+here()
+df_load<-read.csv(here('Data/Processed/load_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+df_temp<-read.csv(here('Data/Processed/temp_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+df_humid<-read.csv(here('Data/Processed/humid_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+
+#df_load<-read.csv(here('C:/Users/dreww/OneDrive/Documents/Homework/Time Series/TSA_Sp24/Data/Processed/load_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+#df_temp<-read.csv(here('C:/Users/dreww/OneDrive/Documents/Homework/Time Series/TSA_Sp24/Data/Processed/temp_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
+#df_humid<-read.csv(here('C:/Users/dreww/OneDrive/Documents/Homework/Time Series/TSA_Sp24/Data/Processed/humid_processed.csv'),stringsAsFactors = TRUE,skip=0,header=TRUE)
 ```
 
 ```{r Filter data}
@@ -80,10 +85,12 @@ for (i in 2:27){
 
 ```{r Create time series object}
 #load
+ts_load<-ts(df_load_processed[,3],start=c(2005-01-01), frequency=365)
 msts_load<-msts(df_load_processed[,3],seasonal.periods=c(7,365))
 autoplot(msts_load)
 ```
-```{r Temp and humidity}
+
+```{r Temp and humidity, include=FALSE}
 df_temp_data<-df_temp_processed[,2:27]
 df_temp_processed %>%
   mutate(daily_mean=rowMeans(df_temp_data, na.rm = TRUE)) %>%
@@ -101,6 +108,12 @@ df_humid_processed %>%
 par(mfrow=c(1,2))
 Acf(msts_load,lag.max=40,main=paste("ACF for load"),ylim=c(-0.5,1))
 Pacf(msts_load,lag.max=40,main=paste("PACF for load"),ylim=c(-0.5,1))
+
+plot_grid(
+  autoplot(Acf(ts_load,plot=FALSE,lag.max=40)),
+  autoplot(Pacf(ts_load,plot=FALSE,lag.max=40)),
+  nrow=1
+)
 ```
 
 
@@ -118,27 +131,25 @@ plot_grid(
   autoplot(Pacf(load_deseason,plot=FALSE,lag.max=40)),
   nrow=1
 )
+
+
 ```
 
 ```{r Stationary test}
 #Mann-Kendall
-summary(MannKendall(load_deseason)) #reject the null hypothesis, supporting the presence of a trend
-
-#seasonal Mann-Kendall
-#correction: calculate monthly average 
-trend::smk.test(load_deseason) 
-
+summary(MannKendall(msts_load)) #trend in the series
 
 #ADF test
-print(adf.test(load_deseason,alternative = "stationary")) #reject the null hypothesis, the trend is stationary 
+print(adf.test(msts_load,alternative = "stationary")) #stationary trend
 ```
 
 ```{r Differencing}
 #find out how many times is needed for differencing 
-ns_diff<-nsdiffs(load_deseason)
+ns_diff<-nsdiffs(ts_load)
 cat("Number of seasonal differencing needed:", ns_diff) #no need to difference the series
 ```
 
+#Use the one-year testing dataset to find the best model for one-month forecast.
 ```{r Training and testing data}
 #training: from 2005-01-01 to 2010-05-30
 #testing: from 2010-05-31 to 2011-05-31
@@ -146,82 +157,85 @@ cat("Number of seasonal differencing needed:", ns_diff) #no need to difference t
 #origin series
 load_data <- df_load_processed[,3]
 
-# Train over whole dataset for final forecasting
-msts_training<-msts(load_data,seasonal.periods=c(7,365))
 
+#splitting training and testing 
+nobs <- nrow(load_data)
+nfor <- 365
+msts_training<-subset(msts_load, end=length(msts_load)-nfor)
+msts_testing<-subset(msts_load, start=length(msts_load)-nfor+1)
 
-# msts_testing<-msts(load_data,seasonal.periods=c(7,365),
-#                   start=c(2010,05,31), end=c(2011,05,31))
+msts_deseason_training<-subset(load_deseason, end=length(msts_load)-nfor)
+msts_deseason_testing<-subset(load_deseason, start=length(msts_load)-nfor+1)
 
-#deseason series
-msts_deseason_training<-msts(load_deseason,seasonal.periods=c(7,365))
-#msts_deseason_testing<-msts(load_deseason,seasonal.periods=c(7,365),
-#                    start=c(2010,05,31), end=c(2011,05,31))
 ```
 
-# One year forecast horizon
+##ETS
 ```{r ETS}
 ETS_fit<-stlf(msts_training,h=365)
 ```
 
+##ARIMA
 ```{r ARIMA and Fourier terms}
 #K=c(2,4)
 #fit ARIMA with original time series 
-ARIMA_Four_fit_1<-auto.arima(msts_deseason_training,
-                             seasonal=FALSE, #because ARIMA can not handle seasonality 
-                             xreg=fourier(msts_deseason_training,K=c(2,6)))
+ARIMA_Four_fit_1<-auto.arima(msts_training,
+                             seasonal=FALSE, 
+                             xreg=fourier(msts_training,K=c(2,4)))
 #forecast with ARIMA_fit
 ARIMA_Four_forecast_1<-forecast(ARIMA_Four_fit_1,
-                                xreg=fourier(msts_deseason_training,K=c(2,6),h=31),
-                                h=31) 
+                                xreg=fourier(msts_training,K=c(2,4),h=365),
+                                h=365) 
+
+#fit ARIMA with deseason time series 
+#ARIMA_Four_fit_1<-auto.arima(msts_deseason_training,
+                            # seasonal=FALSE, 
+                            # xreg=fourier(msts_deseason_training,K=c(2,6)))
+#forecast with ARIMA_fit
+#ARIMA_Four_forecast_1<-forecast(ARIMA_Four_fit_1,
+                              #  xreg=fourier(msts_deseason_training,K=c(2,6),h=31),
+                             #   h=31) 
+
 # Add seasonality back
 #season_start <- length(load_decompose$seasonal)-364
 #season_end <- length(load_decompose$seasonal)-364 + 30
 #ARIMA_forecast <- ARIMA_Four_forecast_1$mean + load_decompose$seasonal[season_start:season_end]
-```
-
-```{r ARIMA and Fourier terms}
 
 #K=c(2,12)
 #fit ARIMA with original time series 
-#ARIMA_Four_fit_2<-auto.arima(msts_training,
-#                             seasonal=FALSE, 
-#                             xreg=fourier(msts_training,K=c(2,12)))
+ARIMA_Four_fit_2<-auto.arima(msts_training,
+                             seasonal=FALSE, 
+                             xreg=fourier(msts_training,K=c(2,12)))
 ##forecast with ARIMA_fit
-#ARIMA_Four_forecast_2<-forecast(ARIMA_Four_fit_2,
-#                                xreg=fourier(msts_training,K=c(2,12),h=31),
-#                                h=31) 
+ARIMA_Four_forecast_2<-forecast(ARIMA_Four_fit_2,
+                                xreg=fourier(msts_training,K=c(2,12),h=365),
+                                h=365) 
+
 ```
 
 ```{r ARIMA + Fourier + exogenous variable}
 #temp
 #create time series object 
-msts_temp_training<-msts(df_temp_processed[,2], seasonal.periods=c(7,365),
-                   start=c(2005,01,01), end=c(2011,06,30))
-
-msts_temp_testing<-msts(df_temp_processed[,2], seasonal.periods=c(7,365),
-                   start=c(2010,05,31), end=c(2011,05,31))
-
+msts_temp<-msts(df_temp_processed[,2], seasonal.periods=c(7,365),start=c(2005,01,01))
+msts_temp_training<-subset(msts_temp, end=length(msts_temp)-nfor)
+msts_temp_testing<-subset(msts_temp, start=length(msts_temp)-nfor+1)
 
 #humid
 #create time series object 
-msts_humid_training<-msts(df_humid_processed[,2], seasonal.periods=c(7,365),
-                   start=c(2005,01,01), end=c(2011,06,30))
-
-msts_humid_testing<-msts(df_humid_processed[,2], seasonal.periods=c(7,365),
-                   start=c(2010,05,31), end=c(2011,05,31))
+msts_humid<-msts(df_humid_processed[,2], seasonal.periods=c(7,365),start=c(2005,01,01))
+msts_humid_training<-subset(msts_humid, end=length(msts_humid)-nfor)
+msts_humid_testing<-subset(msts_humid, start=length(msts_humid)-nfor+1)
 
 #
 #K=c(2,4)
 #fit ARIMA with original time series 
-ARIMA_Four_fit_XREG_1<-auto.arima(msts_deseason_training,
-                           seasonal=FALSE,
-                           #combine fourier and exogenous variable time series  
-                           xreg=as.matrix(cbind(fourier(msts_deseason_training,K=c(2,4)),
-                                                msts_temp_training)))  
+ARIMA_Four_fit_XREG_1<-auto.arima(msts_training,
+                                  seasonal=FALSE,
+                                  #combine fourier and exogenous variable time series 
+                                  xreg=as.matrix(cbind(fourier(msts_training,K=c(2,4)),
+                                                       msts_temp_training)))  
 
 #generate fourier terms
-fourier_terms_1<-fourier(msts_deseason_training, K=c(2,4), h = 365)
+fourier_terms_1<-fourier(msts_training, K=c(2,4), h = 365)
 #generate forecast
 temp_forecast_1<-forecast(msts_temp_training, h = 365)
 #combine fourier terms and forecasts into a numeric matrix
@@ -235,10 +249,10 @@ ARIMA_Four_forecast_XREG_1<-forecast(ARIMA_Four_fit_XREG_1,
 #K=c(2,12)
 #fit ARIMA with original time series 
 ARIMA_Four_fit_XREG_2<-auto.arima(msts_training,
-                           seasonal=FALSE,
-                           #combine fourier and exogenous variable time series  
-                           xreg=as.matrix(cbind(fourier(msts_training,K=c(2,12)),
-                                                msts_temp_training)))  
+                                  seasonal=FALSE,
+                                  #combine fourier and exogenous variable time series  
+                                  xreg=as.matrix(cbind(fourier(msts_training,K=c(2,12)),
+                                                       msts_temp_training)))  
 
 #generate fourier terms
 fourier_terms_2<-fourier(msts_training, K=c(2,12), h = 365)
@@ -253,7 +267,48 @@ ARIMA_Four_forecast_XREG_2<-forecast(ARIMA_Four_fit_XREG_2,
                                    h = 365)
 ```
 
-# NN Optimization
+##NN
+```{r Neural Network}
+#p=1, P=0 because seasonal=FALSE
+
+#K=c(2,4)
+NN_fit_1<-nnetar(msts_training,
+                 p=1,
+                 P=0,
+                 xreg=fourier(msts_training,K=c(2,4)))
+
+NN_forecast_1<-forecast(NN_fit_1,
+                        xreg=fourier(msts_training,K=c(2,4),h=365), 
+                        h=365)
+#Add seasonality back
+#NN_forecast <- NN_forecast_1$mean + load_decompose$seasonal[season_start:season_end]
+
+
+#K=c(2,6)
+NN_fit_2<-nnetar(msts_training,
+                 p=1,
+                 P=0,
+                 xreg=fourier(msts_training,K=c(2,6)))
+
+NN_forecast_2<-forecast(NN_fit_2,
+                        xreg=fourier(msts_training,K=c(2,6),h=365), 
+                        h=365)
+
+
+#K=c(2,12)
+NN_fit_2<-nnetar(msts_training,
+                 p=1,
+                 P=0,
+                 xreg=fourier(msts_training,K=c(2,12)))
+
+NN_forecast_2<-forecast(NN_fit_2,
+                        xreg=fourier(msts_training,K=c(2,12),h=365), 
+                        h=365)
+
+```
+
+#One-month forecast horizon
+## NN Optimization 
 ```{r}
 
 # Training and test sets
@@ -283,87 +338,60 @@ print(nn_acc_min, p_opt, P_opt)
 
 ```
 
-# Optimized NN
-```{r}
+## Optimized NN
+```{r Optimized NN}
+#Ina: this chunk does not work for me
+#forecast for one month
 # Fit optimized model
-nn_train_opt <- nnetar(train,p=p_opt,P=P_opt)
-nn_testfor_opt <- forecast(nn_train_opt,h=n_test)
-nn_acc_opt <- accuracy(nn_testfor_opt,petrol_test)
-cat("Optimized Neural Network: p =",p_opt, ", P =",P_opt,", Training Accuracy (MAPE):", nn_acc_opt[9],", Test Accuracy (MAPE):", nn_acc_opt[10])
+#nn_train_opt <- nnetar(train,p=p_opt,P=P_opt)
+#nn_testfor_opt <- forecast(nn_train_opt,h=n_test)
+#nn_acc_opt <- accuracy(nn_testfor_opt,petrol_test)
+#cat("Optimized Neural Network: p =",p_opt, ", P =",P_opt,", Training Accuracy (MAPE):", nn_acc_opt[9],", Test Accuracy (MAPE):", nn_acc_opt[10])
 
 # Train on whole data set and forecast for 31 days
-nn_fit <- nnetar(msts_training,p=p_opt,P=P_opt)
-nn_for <- forecast(nn_fit, h=31)
+#nn_fit <- nnetar(msts_training,p=p_opt,P=P_opt)
+#nn_for <- forecast(nn_fit, h=31)
 ```
 
 
-# TBATS
-```{r}
+## TBATS (for one-month forecast horizon)
+```{r TBATS}
+#forecast for one month
 # Fit TBATS model
 tbats_fit <- tbats(msts_training)
 tbats_for <- forecast(tbats_fit, h=31)
 
 ```
 
-# Plot Forecasts
-```{r}
+#Plot results
+```{r Plot Forecasts - one month}
 library(ggplot2)
 autoplot(ts(load_data), series="Time Series History") +
   #autolayer(nn_for$fitted, series = "NN Fit") +
   #autolayer(ts(tbats_for$fitted), series = "TBATS Fit") +
-  autolayer(nn_for$mean, series = "NN Forecast") +
+  #autolayer(nn_for$mean, series = "NN Forecast") +
   autolayer(ts(tbats_for$mean), series = "TBATS Forecast") +
   xlab("Year") + ylab("Load") +
   ggtitle("Neural Network Load Forecasting") 
 ```
 
 
-
-```{r Neural Network with external regressors}
-#p=1, P=0 because seasonal=FALSE
-
-#K=c(2,4)
-NN_fit_1<-nnetar(msts_deseason_training,
-                 p=1,
-                 P=0,
-                 xreg=fourier(msts_deseason_training,K=c(2,6)))
-
-NN_forecast_1<-forecast(NN_fit_1,
-                        xreg=fourier(msts_training,K=c(2,6),h=31), 
-                        h=31)
-#Add seasonality back
-NN_forecast <- NN_forecast_1$mean + load_decompose$seasonal[season_start:season_end]
-```
-
-
-
-#K=c(2,12)
-#NN_fit_2<-nnetar(msts_training,
-#                 p=1,
-#                 P=0,
-#                 xreg=fourier(msts_training,K=c(2,12)))
-#
-#NN_forecast_2<-forecast(NN_fit_2,
-#                        xreg=fourier(msts_training,K=c(2,12),h=31), 
-#                        h=31)
-#
-```
-
 ```{r Plot Forecast Results}
 #forecast period 
-#forecast_start<-start(ARIMA_Four_forecast_1$mean)
-#forecast_end<-end(ARIMA_Four_forecast_1$mean)
-#msts_forecast<-window(msts_load, start=forecast_start, end=forecast_end)
+forecast_start<-start(ARIMA_Four_forecast_1$mean)
+forecast_end<-end(ARIMA_Four_forecast_1$mean)
+msts_forecast<-window(msts_load, start=forecast_start, end=forecast_end)
 
 #plot forecasting result
 
-#with K=c(2,4)
-#add the seasonality back 
-#ETS_fit$mean<-ETS_fit$mean+load_decompose$seasonal
-ARIMA_Four_forecast_1$mean<-ARIMA_Four_forecast_1$mean+load_decompose$seasonal
-NN_forecast_1$mean<-NN_forecast_1$mean+load_decompose$seasonal
-ARIMA_Four_forecast_XREG_1$mean<-ARIMA_Four_forecast_XREG_1$mean+load_decompose$seasonal
 
+#add the seasonality back when using deseason series
+#ETS_fit$mean<-ETS_fit$mean+load_decompose$seasonal
+#ARIMA_Four_forecast_1$mean<-ARIMA_Four_forecast_1$mean+load_decompose$seasonal
+#NN_forecast_1$mean<-NN_forecast_1$mean+load_decompose$seasonal
+#ARIMA_Four_forecast_XREG_1$mean<-ARIMA_Four_forecast_XREG_1$mean+load_decompose$seasonal
+
+#with K=c(2,4)
 autoplot(NN_forecast_1$mean)+
   autolayer(ETS_fit,series="STL+ETS",PI=FALSE)+
   autolayer(ARIMA_Four_forecast_1$mean, series="ARIMA Fourier",PI=FALSE)+
@@ -371,12 +399,12 @@ autoplot(NN_forecast_1$mean)+
   autolayer(NN_forecast_1$mean, series="Neural Network")
   
 
-#with K=c(2,12)
+#with K=c(2,12) / K=c(2,6)
 autoplot(msts_forecast)+
   autolayer(ETS_fit,series="STL+ETS",PI=FALSE)+
   autolayer(ARIMA_Four_forecast_2, series="ARIMA Fourier",PI=FALSE)+
   autolayer(ARIMA_Four_forecast_XREG_2, series="ARIMA Fourier XREG",PI=FALSE)+
-  autolayer(NN_forecast_2, series="Neural Network")
+  autolayer(NN_forecast_2, series="Neural Network") #K=c(2,6)
 ```
 
 ```{r Model Residuals}
@@ -386,7 +414,7 @@ resi_ARIMA_Four_2<-checkresiduals(ARIMA_Four_forecast_2)
 resi_ARIMA_Four_XREG_1<-checkresiduals(ARIMA_Four_forecast_XREG_1)
 resi_ARIMA_Four_XREG_2<-checkresiduals(ARIMA_Four_forecast_XREG_2)
 resi_NN_forecast_1<-checkresiduals(NN_forecast_1)
-resi_NN_forecast_2<-checkresiduals(NN_forecast_2)
+resi_NN_forecast_2<-checkresiduals(NN_forecast_2) 
 ```
 
 ```{r Accuracy}
@@ -402,7 +430,7 @@ scores_ARIMA_Four_forecast_2<-accuracy(ARIMA_Four_forecast_2$mean,msts_testing)
 #Model4: Neural network, K=c(2,4) 
 scores_NN_1<-accuracy(NN_forecast_1$mean,msts_testing)
 
-#Model5: Neural network, K=c(2,12)
+#Model5: Neural network, K=c(2,6)
 scores_NN_2<-accuracy(NN_forecast_2$mean,msts_testing)
 
 #Model6: ARIMA + Fourier + XREG, K=c(2,4) 
@@ -425,7 +453,7 @@ row.names(scores)<-c("ETS",
                      "ARIMA+Fourier+XREG, K=C(2,4)",
                      "ARIMA+Fourier+XREG, K=C(2,12)",
                      "NN, K=C(2,4)",
-                     "NN, K=C(2,12)")
+                     "NN, K=C(2,6)")
 
 #create a comparable table 
 kbl(scores, 
@@ -435,13 +463,14 @@ kbl(scores,
 
 #Model3 has the lowest the RMSE and MAPE
 ```
+
 ```{r Forecast}
 # Assuming daily mean values are in the correct columns (adjust column names if needed)
 temp_july <- mean(df_temp_processed$date >= as.Date("2011-07-01") & df_temp_processed$date <= as.Date("2011-07-31"))
 humid_july <- mean(df_humid_processed$date >= as.Date("2011-07-01") & df_humid_processed$date <= as.Date("2011-07-31"))
 
 # Generate Fourier terms for July 2011
-fourier_terms_july <- fourier(msts_deseason_training, K = c(2, 12), h = 31)
+fourier_terms_july <- fourier(msts_training, K = c(2, 12), h = 31)
 
 # Combine Fourier terms and exogenous variables into a matrix
 xreg_matrix_july <- cbind(fourier_terms_july, temp_july, humid_july)
@@ -454,4 +483,21 @@ forecast_july <- forecast(ARIMA_Four_forecast_2,
 # Plot the forecast for July 2011
 autoplot(forecast_july) +
   labs(title = "Forecast for Load Data - July 2011")
+```
+
+
+#Final forecast
+```{r Fianl }
+#Train over whole dataset for final forecasting
+msts_training_all<-msts(load_data,seasonal.periods=c(7,365))
+
+NN_fit_final<-nnetar(msts_training,
+                 p=1,
+                 P=0,
+                 xreg=fourier(msts_training,K=c(2,6)))
+
+NN_forecast_final<-forecast(NN_fit_final,
+                        xreg=fourier(msts_training,K=c(2,6),h=31), 
+                        h=31)
+autoplot(NN_forecast_final)
 ```
