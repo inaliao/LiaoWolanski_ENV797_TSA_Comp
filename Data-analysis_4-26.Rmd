@@ -1,5 +1,5 @@
 ---
-title: "Data Analysis"
+title: "Data wrangling"
 author: "Ina Liao and Drew Wolanski"
 date: "2024-03-25"
 output: html_document
