@@ -77,11 +77,11 @@ df_humid_merge<-left_join(df_time,df_humid,by="date")
 
 #filter missing data
 df_load_merge %>%
-  filter(is.na(date)) #no missing data
+  filter(is.na(date)) #error: use other value to check missing data
 df_temp_merge %>%
-  filter(is.na(date)) #no missing data
+  filter(is.na(date)) 
 df_humid_merge %>%
-  filter(is.na(date)) #no missing data
+  filter(is.na(date)) 
 ```
 
 ```{r Daily average}
